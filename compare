@@ -1,0 +1,204 @@
+from pathlib import Path
+import os
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib.patches import FancyBboxPatch
+
+DATA_FILE = (
+    Path.home()
+    / "Documents"
+    / "MLS_Player_Stats_2026.xlsx"
+)
+
+IMAGE_DIR = (
+    Path.home()
+    / "Documents"
+    / "player_images"
+)
+
+OUTPUT_FILE = Path("player_comparison.png")
+
+
+def get_image_path(player_name: str) -> Path:
+    """Return a player's image, or the default image if unavailable."""
+    image_path = IMAGE_DIR / f"{player_name}.png"
+
+    if image_path.is_file():
+        return image_path
+
+    return IMAGE_DIR / "default.png"
+
+# Load player statistics from the same Documents location.
+df = pd.read_excel(DATA_FILE, sheet_name="Player Stats")
+
+# %%
+df["player_name"] = (
+    df["player_first_name"].fillna("")
+    + " "
+    + df["player_last_name"].fillna("")
+)
+
+# Enter the two player names to compare.
+p1 = "Leo Messi"
+p2 = "Petar Musa"
+
+player1_matches = df.loc[df["player_name"] == p1]
+player2_matches = df.loc[df["player_name"] == p2]
+
+if player1_matches.empty:
+    raise ValueError(f"Player not found in the workbook: {p1}")
+
+if player2_matches.empty:
+    raise ValueError(f"Player not found in the workbook: {p2}")
+
+player1 = player1_matches.iloc[0]
+player2 = player2_matches.iloc[0]
+
+# Statistics displayed in the comparison graphic.
+stats = {
+    "Matches": [player1["matches_played"], player2["matches_played"]],
+    "Goals": [player1["goals"], player2["goals"]],
+    "Assists": [player1["assists"], player2["assists"]],
+    "G/A": [player1["goals_plus_assists"], player2["goals_plus_assists"]],
+    "xG": [f"{player1['xG']:.2f}", f"{player2['xG']:.2f}"],
+    "Shots": [player1["shots_at_goal_sum"], player2["shots_at_goal_sum"]],
+    "Shots on Target": [
+        player1["shots_on_target"],
+        player2["shots_on_target"],
+    ],
+    "xG efficiency": [
+        f"{player1['xG_efficiency']:.2f}",
+        f"{player2['xG_efficiency']:.2f}",
+    ],
+    "Pass Conv. Rate": [
+        player1["passes_conversion_rate"],
+        player2["passes_conversion_rate"],
+    ],
+}
+
+# Figure and main overlay axes.
+fig = plt.figure(
+    figsize=(38.4, 21.6),
+    dpi=100,
+    facecolor="#1F2742",
+)
+ax_main = fig.add_axes([0, 0, 1, 1])
+ax_main.axis("off")
+ax_main.set_facecolor("#1F2742")
+ax_main.set_xlim(-1.0, 1)
+ax_main.set_ylim(0, 1)
+
+# Load player images.
+img1 = plt.imread(get_image_path(p1))
+img2 = plt.imread(get_image_path(p2))
+
+# Draw player images in the background.
+ax_main.imshow(
+    img1,
+    extent=[-0.95, -0.30, -0.05, 0.85],
+    zorder=0,
+    alpha=0.90,
+)
+ax_main.imshow(
+    img2,
+    extent=[0.30, 0.95, -0.05, 0.85],
+    zorder=0,
+    alpha=0.90,
+)
+
+# Title.
+ax_main.text(
+    0,
+    0.95,
+    f"{p1} vs {p2}",
+    ha="center",
+    va="center",
+    fontsize=72,
+    fontweight="bold",
+    color="#FFFFFF",
+    zorder=10,
+)
+
+# Comparison bubble settings.
+bubble_left = 0.38
+bubble_width = 0.24
+bubble_height = 0.04
+
+# Text positions relative to each bubble.
+p1_x = bubble_left + 0.03
+stat_x = bubble_left + bubble_width / 2
+p2_x = bubble_left + bubble_width - 0.03
+
+# Draw statistic rows.
+y = 0.80
+
+for stat, values in stats.items():
+    bubble = FancyBboxPatch(
+        (bubble_left, y - bubble_height / 2),
+        bubble_width,
+        bubble_height,
+        boxstyle="round,pad=0.02,rounding_size=0.02",
+        linewidth=1,
+        edgecolor="#FFFFFF",
+        facecolor="#BB2533",
+        alpha=0.50,
+        transform=ax_main.transAxes,
+        zorder=10,
+    )
+    ax_main.add_patch(bubble)
+
+    ax_main.text(
+        p1_x,
+        y,
+        str(values[0]),
+        fontsize=48,
+        color="#FFFFFF",
+        ha="center",
+        va="center",
+        transform=ax_main.transAxes,
+        zorder=10,
+    )
+
+    ax_main.text(
+        stat_x,
+        y,
+        stat,
+        fontsize=42,
+        color="#FFFFFF",
+        ha="center",
+        va="center",
+        transform=ax_main.transAxes,
+        zorder=10,
+    )
+
+    ax_main.text(
+        p2_x,
+        y,
+        str(values[1]),
+        fontsize=48,
+        color="#FFFFFF",
+        ha="center",
+        va="center",
+        transform=ax_main.transAxes,
+        zorder=10,
+    )
+
+    y -= 0.08
+
+ax_main.axvline(
+    x=0.0,
+    color="yellow",
+    linewidth=2,
+    alpha=0.5,
+)
+
+# player_comparison.png in the directory.
+plt.savefig(
+    OUTPUT_FILE,
+    dpi=100,
+    facecolor="#1F2742",
+    bbox_inches=None,
+)
+plt.close(fig)
+
+print(f"Comparison image saved to: {OUTPUT_FILE.resolve()}")
